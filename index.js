@@ -5,57 +5,55 @@ const session = require('express-session');
 
 const app = express();
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ limit: '5mb', extended: true }));
+app.use(express.json({ limit: '5mb' }));
 
-// Wyłączenie pamięci podręcznej (brak zapamiętywania sesji po zamknięciu przeglądarki)
 app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     next();
 });
 
-// Tymczasowa sesja
 app.use(session({
     secret: 'tajny_klucz_pudelek',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        maxAge: null, // Wygasa po zamknięciu przeglądarki
+        maxAge: null,
         httpOnly: true
     }
 }));
 
-// Zdefiniowani użytkownicy i ich hasła (Login: Hasło)
+// Zdefiniowani dokładnie dwaj użytkownicy
 const USERS = {
-    "admin": "haslo123",
-    "adam": "pudelek2026",
-    "gosc": "tajne"
+    "A": "pudelek2026",
+    "O": "pudelek2026"
 };
 
 const MONGO_URI = process.env.MONGO_URI || "TWOJ_LINK_Z_MONGODB_ATLAS";
 mongoose.connect(MONGO_URI);
 
+// Schemat z obsługą czasu odczytu przez drugiego użytkownika
 const messageSchema = new mongoose.Schema({
     author: String,
     content: String,
-    createdAt: { type: Date, default: Date.now, expires: 86400 } // TTL 24h
+    image: String,
+    createdAt: { type: Date, default: Date.now },
+    readAt: { type: Date, default: null } // Czas, w którym DRUGA osoba pierwszy raz otworzyła wiadomość
 });
+
 const Message = mongoose.model('Message', messageSchema);
 
-// Strona główna
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Stan zalogowania
 app.get('/user', (req, res) => {
     res.json({ username: req.session.username || null });
 });
 
-// Logowanie z loginem i hasłem
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    const cleanUser = username ? username.trim() : '';
+    const cleanUser = username ? username.trim().toLowerCase() : '';
 
     if (USERS[cleanUser] && USERS[cleanUser] === password) {
         req.session.username = cleanUser;
@@ -65,7 +63,6 @@ app.post('/login', (req, res) => {
     }
 });
 
-// Wylogowanie
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid');
@@ -73,29 +70,50 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Wysyłanie wiadomości (Tylko dla zalogowanych)
 app.post('/send', async (req, res) => {
     if (!req.session.username) {
-        return res.status(401).send('Brak dostępu.');
+        return res.status(401).json({ error: 'Brak dostępu' });
     }
     try {
+        const { message, image } = req.body;
         await Message.create({
             author: req.session.username,
-            content: req.body.message
+            content: message,
+            image: image || null
         });
-        res.redirect('/');
+        res.json({ success: true });
     } catch (err) {
-        res.status(500).send('Błąd zapisu wiadomości');
+        res.status(500).json({ error: 'Błąd zapisu wiadomości' });
     }
 });
 
-// Pobieranie wiadomości (TYLKO DLA ZALOGOWANYCH)
+// Pobieranie wiadomości + weryfikacja i usuwanie po 2 minutach od odczytu
 app.get('/messages', async (req, res) => {
-    if (!req.session.username) {
-        return res.status(401).json({ error: 'Brak dostępu. Zaloguj się, aby zobaczyć wiadomości.' });
+    const currentUser = req.session.username;
+    if (!currentUser) {
+        return res.status(401).json({ error: 'Brak dostępu' });
     }
+
     try {
+        const now = new Date();
+        const TWO_MINUTES_MS = 2 * 60 * 1000;
+
+        // 1. Usuń z bazy wiadomości, od których odczytu minęły już 2 minuty
+        await Message.deleteMany({
+            readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
+        });
+
+        // 2. Pobierz pozostałe wiadomości
         const messages = await Message.find().sort({ createdAt: -1 });
+
+        // 3. Oznacz wiadomości od INNEGO użytkownika jako odczytane (jeśli jeszcze nie były)
+        for (let msg of messages) {
+            if (msg.author !== currentUser && !msg.readAt) {
+                msg.readAt = now;
+                await msg.save();
+            }
+        }
+
         res.json(messages);
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania wiadomości' });

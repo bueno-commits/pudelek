@@ -3,57 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChChroniony Czat</title>
+    <title>Czat - Znikające po 2 min</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; }
         textarea { width: 100%; height: 80px; margin-bottom: 10px; box-sizing: border-box; }
         input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; }
+        input[type="file"] { margin-bottom: 15px; }
         button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; width: 100%; }
         button:hover { background-color: #0056b3; }
         .message-box { background: #f4f4f9; border-left: 4px solid #007bff; padding: 10px; margin: 10px 0; border-radius: 4px; }
         .author { font-weight: bold; color: #007bff; }
         .date { font-size: 11px; color: #777; margin-top: 5px; }
+        .status { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 3px; }
         .auth-box { background: #e9ecef; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .logout-btn { background-color: #dc3545; width: auto; padding: 5px 10px; font-size: 12px; }
+        .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
     </style>
 </head>
 <body>
 
     <div id="auth-section" class="auth-box">Sprawdzanie uprawnień...</div>
 
-    <!-- Poniższa sekcja widoczna TYLKO po zalogowaniu -->
+    <!-- Panel widoczny tylko dla użytkownika A -->
+    <div id="admin-section" class="admin-panel" style="display: none;">
+        <h3>Panel Użytkownika A: Zmiana hasła dla O</h3>
+        <form id="change-pass-form">
+            <label>Nowe hasło dla użytkownika O:</label>
+            <input type="password" id="new-password-o" placeholder="Wpisz nowe hasło..." required>
+            <button type="submit" style="background-color: #ffc107; color: #212529;">Zmień hasło dla O</button>
+        </form>
+    </div>
+
     <div id="protected-content" style="display: none;">
-        <h2>Napisz wiadomość (zniknie po 24h)</h2>
-        <form action="/send" method="POST">
-            <textarea name="message" placeholder="Wpisz treść wiadomości..." required></textarea><br>
+        <h2>Napisz wiadomość</h2>
+        <form id="message-form">
+            <textarea id="message-text" placeholder="Wpisz treść wiadomości..." required></textarea><br>
+            <label>Dodaj zdjęcie (opcjonalnie):</label><br>
+            <input type="file" id="message-image" accept="image/*"><br>
             <button type="submit">Wyślij wiadomość</button>
         </form>
 
         <hr style="margin: 30px 0;">
 
-        <h2>Zapisane wiadomości:</h2>
+        <h2>Wiadomości:</h2>
         <div id="messages-container">Pobieranie wiadomości...</div>
     </div>
 
     <script>
+        let currentUser = null;
+
         async function init() {
             const res = await fetch('/user');
             const data = await res.json();
             const authDiv = document.getElementById('auth-section');
             const protectedContent = document.getElementById('protected-content');
+            const adminSection = document.getElementById('admin-section');
 
             if (data.username) {
+                currentUser = data.username;
                 authDiv.innerHTML = `
                     Zalogowano jako: <strong>${data.username}</strong> 
                     <a href="/logout"><button class="logout-btn">Wyloguj się</button></a>
                 `;
                 protectedContent.style.display = 'block';
+
+                // Pokazuj panel zmiany hasła wyłącznie użytkownikowi A
+                if (currentUser === 'a') {
+                    adminSection.style.display = 'block';
+                }
+
                 loadMessages();
+                setInterval(loadMessages, 3000);
             } else {
                 authDiv.innerHTML = `
                     <h2>Logowanie</h2>
                     <form action="/login" method="POST">
-                        <label>Login:</label>
+                        <label>Login (a / o):</label>
                         <input type="text" name="username" required>
                         <label>Hasło:</label>
                         <input type="password" name="password" required>
@@ -61,22 +87,73 @@
                     </form>
                 `;
                 protectedContent.style.display = 'none';
+                adminSection.style.display = 'none';
             }
         }
+
+        // Obsługa formularza zmiany hasła dla O
+        document.getElementById('change-pass-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password-o').value;
+
+            const res = await fetch('/change-password-o', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword })
+            });
+
+            if (res.ok) {
+                alert('Hasło dla użytkownika O zostało pomyślnie zmienione!');
+                document.getElementById('new-password-o').value = '';
+            } else {
+                const errData = await res.json();
+                alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
+            }
+        });
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        document.getElementById('message-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = document.getElementById('message-text').value;
+            const fileInput = document.getElementById('message-image');
+            let imageBase64 = null;
+
+            if (fileInput.files.length > 0) {
+                imageBase64 = await toBase64(fileInput.files[0]);
+            }
+
+            const res = await fetch('/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text, image: imageBase64 })
+            });
+
+            if (res.ok) {
+                document.getElementById('message-text').value = '';
+                fileInput.value = '';
+                loadMessages();
+            } else {
+                alert('Błąd wysyłania wiadomości.');
+            }
+        });
 
         async function loadMessages() {
             try {
                 const response = await fetch('/messages');
-                if (response.status === 401) {
-                    document.getElementById('messages-container').innerText = 'Brak dostępu.';
-                    return;
-                }
+                if (response.status === 401) return;
+
                 const messages = await response.json();
                 const container = document.getElementById('messages-container');
                 container.innerHTML = '';
 
                 if (messages.length === 0) {
-                    container.innerHTML = '<p>Brak wiadomości w bazie.</p>';
+                    container.innerHTML = '<p>Brak wiadomości.</p>';
                     return;
                 }
 
@@ -86,9 +163,23 @@
                     const date = new Date(msg.createdAt).toLocaleString('pl-PL');
                     const author = msg.author || 'Anonim';
                     
+                    let imgTag = '';
+                    if (msg.image) {
+                        imgTag = `<img src="${msg.image}" class="uploaded-img" alt="Załączone zdjęcie">`;
+                    }
+
+                    let statusText = '';
+                    if (msg.readAt) {
+                        statusText = `<div class="status">⚠️ Odczytano przez drugą osobę – zniknie w ciągu 2 minut!</div>`;
+                    } else if (msg.author === currentUser) {
+                        statusText = `<div class="status" style="color: #6c757d;">Oczekuje na odczytanie...</div>`;
+                    }
+
                     div.innerHTML = `
                         <div><span class="author">${author}:</span> ${msg.content}</div>
+                        ${imgTag}
                         <div class="date">Dodano: ${date}</div>
+                        ${statusText}
                     `;
                     container.appendChild(div);
                 });
