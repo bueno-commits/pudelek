@@ -2,13 +2,62 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Znikające wiadomości</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; }
+        textarea { width: 100%; height: 80px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .message-box { background: #f4f4f9; border-left: 4px solid #007bff; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .date { font-size: 11px; color: #777; margin-top: 5px; }
+    </style>
 </head>
 <body>
+
     <h2>Napisz wiadomość (zniknie po 24h)</h2>
     <form action="/send" method="POST">
-        <textarea name="message" required></textarea><br>
+        <textarea name="message" placeholder="Wpisz treść wiadomości..." required></textarea><br>
         <button type="submit">Wyślij</button>
     </form>
+
+    <hr style="margin: 30px 0;">
+
+    <h2>Zapisane wiadomości:</h2>
+    <div id="messages-container">Pobieranie wiadomości...</div>
+
+    <script>
+        // Pobieranie i wyświetlanie wiadomości z bazy
+        async function loadMessages() {
+            try {
+                const response = await fetch('/messages');
+                const messages = await response.json();
+                
+                const container = document.getElementById('messages-container');
+                container.innerHTML = '';
+
+                if (messages.length === 0) {
+                    container.innerHTML = '<p>Brak wiadomości w bazie.</p>';
+                    return;
+                }
+
+                messages.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = 'message-box';
+                    
+                    const date = new Date(msg.createdAt).toLocaleString('pl-PL');
+                    div.innerHTML = `<div>${msg.content}</div><div class="date">Dodano: ${date}</div>`;
+                    
+                    container.appendChild(div);
+                });
+            } catch (err) {
+                document.getElementById('messages-container').innerText = 'Błąd wczytywania wiadomości.';
+            }
+        }
+
+        // Załaduj wiadomości przy otwarciu strony
+        loadMessages();
+    </script>
+
 </body>
 </html>
