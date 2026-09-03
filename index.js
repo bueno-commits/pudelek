@@ -23,24 +23,41 @@ app.use(session({
     }
 }));
 
-// Zdefiniowani dokładnie dwaj użytkownicy
-const USERS = {
-    "A": "pudelek2026",
-    "O": "pudelek2026"
-};
-
 const MONGO_URI = process.env.MONGO_URI || "TWOJ_LINK_Z_MONGODB_ATLAS";
 mongoose.connect(MONGO_URI);
 
-// Schemat z obsługą czasu odczytu przez drugiego użytkownika
+// Schemat użytkowników w bazie
+const userSchema = new mongoose.Schema({
+    username: { type: String, unique: true },
+    password: String
+});
+const User = mongoose.model('User', userSchema);
+
+// Tworzenie kont przy pierwszym uruchomieniu
+async function initUsers() {
+    try {
+        const count = await User.countDocuments();
+        if (count === 0) {
+            await User.create([
+                { username: 'a', password: 'pudelek2026' },
+                { username: 'o', password: 'pudelek2026' }
+            ]);
+            console.log('Utworzono domyślnych użytkowników: a oraz o');
+        }
+    } catch (err) {
+        console.error('Błąd inicjalizacji użytkowników:', err);
+    }
+}
+initUsers();
+
+// Schemat wiadomości
 const messageSchema = new mongoose.Schema({
     author: String,
     content: String,
     image: String,
     createdAt: { type: Date, default: Date.now },
-    readAt: { type: Date, default: null } // Czas, w którym DRUGA osoba pierwszy raz otworzyła wiadomość
+    readAt: { type: Date, default: null }
 });
-
 const Message = mongoose.model('Message', messageSchema);
 
 app.get('/', (req, res) => {
@@ -51,15 +68,39 @@ app.get('/user', (req, res) => {
     res.json({ username: req.session.username || null });
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const cleanUser = username ? username.trim().toLowerCase() : '';
 
-    if (USERS[cleanUser] && USERS[cleanUser] === password) {
-        req.session.username = cleanUser;
-        res.redirect('/');
-    } else {
-        res.status(401).send('<h3>Błędny login lub hasło!</h3><a href="/">Wróć do logowania</a>');
+    try {
+        const user = await User.findOne({ username: cleanUser, password: password });
+        if (user) {
+            req.session.username = user.username;
+            res.redirect('/');
+        } else {
+            res.status(401).send('<h3>Błędny login lub hasło!</h3><a href="/">Wróć do logowania</a>');
+        }
+    } catch (err) {
+        res.status(500).send('Błąd serwera podczas logowania.');
+    }
+});
+
+// Zmiana hasła użytkownika O przez użytkownika A
+app.post('/change-password-o', async (req, res) => {
+    if (req.session.username !== 'a') {
+        return res.status(403).json({ error: 'Brak uprawnień. Tylko użytkownik A może zmieniać hasło.' });
+    }
+
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim() === '') {
+        return res.status(400).json({ error: 'Hasło nie może być puste.' });
+    }
+
+    try {
+        await User.updateOne({ username: 'o' }, { password: newPassword.trim() });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Błąd podczas zmiany hasła.' });
     }
 });
 
@@ -87,7 +128,6 @@ app.post('/send', async (req, res) => {
     }
 });
 
-// Pobieranie wiadomości + weryfikacja i usuwanie po 2 minutach od odczytu
 app.get('/messages', async (req, res) => {
     const currentUser = req.session.username;
     if (!currentUser) {
@@ -98,15 +138,12 @@ app.get('/messages', async (req, res) => {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-        // 1. Usuń z bazy wiadomości, od których odczytu minęły już 2 minuty
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
 
-        // 2. Pobierz pozostałe wiadomości
         const messages = await Message.find().sort({ createdAt: -1 });
 
-        // 3. Oznacz wiadomości od INNEGO użytkownika jako odczytane (jeśli jeszcze nie były)
         for (let msg of messages) {
             if (msg.author !== currentUser && !msg.readAt) {
                 msg.readAt = now;
