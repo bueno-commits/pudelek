@@ -12,6 +12,18 @@
         .login-btn-nav { background: white; color: #e6005c; border: none; padding: 8px 18px; font-weight: bold; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; }
         .login-btn-nav:hover { background: #ffe6f0; }
 
+        /* Menu rozwijane na pasku */
+        .user-dropdown { position: relative; display: inline-block; }
+        .user-btn { background: white; color: #e6005c; border: none; padding: 8px 15px; font-weight: bold; border-radius: 20px; cursor: pointer; font-size: 14px; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 110%; background-color: white; min-width: 260px; box-shadow: 0px 8px 16px rgba(0,0,0,0.2); border-radius: 8px; padding: 15px; z-index: 1000; color: #333; }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu h4 { margin: 0 0 8px 0; font-size: 13px; color: #666; text-transform: uppercase; }
+        .dropdown-menu input { width: 100%; padding: 6px; margin-bottom: 8px; box-sizing: border-box; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+        .dropdown-menu button { width: 100%; padding: 6px; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 12px; color: white; }
+        .dropdown-divider { height: 1px; background: #eee; margin: 10px 0; }
+        .logout-link { display: block; text-align: center; background: #dc3545; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+        .logout-link:hover { background: #bd2130; }
+
         .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
         
         .fake-post { background: white; border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -32,10 +44,6 @@
         .date { font-size: 11px; color: #777; margin-top: 5px; }
         .status { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 3px; }
         
-        .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
-        .admin-panel form { flex: 1; min-width: 200px; }
-        
-        .logout-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 3px; cursor: pointer; }
         .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
@@ -73,22 +81,6 @@
         </div>
 
         <div id="protected-content" style="display: none;" class="chat-app">
-            
-            <!-- Panel A: Zmiana hasła dla A oraz O -->
-            <div id="admin-section" class="admin-panel" style="display: none;">
-                <form id="change-pass-a-form">
-                    <h4 style="margin-top:0;">Zmień MOJE hasło (A):</h4>
-                    <input type="password" id="new-password-a" placeholder="Nowe hasło dla A..." required>
-                    <button type="submit" class="action-btn" style="background-color: #28a745;">Zmień swoje hasło</button>
-                </form>
-
-                <form id="change-pass-o-form">
-                    <h4 style="margin-top:0;">Zmień hasło dla Użytkownika O:</h4>
-                    <input type="password" id="new-password-o" placeholder="Nowe hasło dla O..." required>
-                    <button type="submit" class="action-btn" style="background-color: #ffc107; color: #212529;">Zmień hasło dla O</button>
-                </form>
-            </div>
-
             <h2>Prywatny Czat</h2>
             <form id="message-form">
                 <textarea id="message-text" placeholder="Wpisz treść wiadomości..." required></textarea><br>
@@ -130,13 +122,21 @@
         closeLoginBtn?.addEventListener('click', () => modal.style.display = 'none');
         window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
+        function toggleDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('user-dropdown-menu')?.classList.toggle('show');
+        }
+
+        window.addEventListener('click', () => {
+            document.getElementById('user-dropdown-menu')?.classList.remove('show');
+        });
+
         async function init() {
             const res = await fetch('/user');
             const data = await res.json();
             const navRight = document.getElementById('nav-right');
             const publicLanding = document.getElementById('public-landing');
             const protectedContent = document.getElementById('protected-content');
-            const adminSection = document.getElementById('admin-section');
 
             if (data.username) {
                 currentUser = data.username;
@@ -145,21 +145,42 @@
                 protectedContent.style.display = 'block';
                 modal.style.display = 'none';
 
-                navRight.innerHTML = `
-                    <span style="font-size:14px; margin-right:10px;">Zalogowano: <strong>${data.username}</strong></span>
-                    <a href="/logout"><button class="logout-btn">Wyloguj</button></a>
-                `;
-
+                let adminFormsHtml = '';
                 if (currentUser === 'a') {
-                    adminSection.style.display = 'flex';
+                    adminFormsHtml = `
+                        <h4>Zmień swoje hasło (A)</h4>
+                        <form id="change-pass-a-form">
+                            <input type="password" id="new-password-a" placeholder="Nowe hasło A..." required>
+                            <button type="submit" style="background-color: #28a745;">Zapisz nowe hasło</button>
+                        </form>
+                        <div class="dropdown-divider"></div>
+                        <h4>Zmień hasło dla O</h4>
+                        <form id="change-pass-o-form">
+                            <input type="password" id="new-password-o" placeholder="Nowe hasło O..." required>
+                            <button type="submit" style="background-color: #ffc107; color: #212529;">Zapisz dla O</button>
+                        </form>
+                        <div class="dropdown-divider"></div>
+                    `;
                 }
 
+                navRight.innerHTML = `
+                    <div class="user-dropdown">
+                        <button class="user-btn" onclick="toggleDropdown(event)">
+                            Konto: ${data.username.toUpperCase()} ▾
+                        </button>
+                        <div class="dropdown-menu" id="user-dropdown-menu" onclick="event.stopPropagation()">
+                            ${adminFormsHtml}
+                            <a href="/logout" class="logout-link">Wyloguj się</a>
+                        </div>
+                    </div>
+                `;
+
+                setupPasswordForms();
                 loadMessages();
                 setInterval(loadMessages, 3000);
             } else {
                 publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
-                adminSection.style.display = 'none';
                 navRight.innerHTML = `<button class="login-btn-nav" id="open-login-btn-dynamic">Zaloguj się</button>`;
                 
                 document.getElementById('open-login-btn-dynamic').addEventListener('click', () => {
@@ -168,45 +189,45 @@
             }
         }
 
-        // Zmiana własnego hasła (dla użytkownika A)
-        document.getElementById('change-pass-a-form')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newPassword = document.getElementById('new-password-a').value;
+        function setupPasswordForms() {
+            document.getElementById('change-pass-a-form')?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newPassword = document.getElementById('new-password-a').value;
+                const res = await fetch('/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword })
+                });
 
-            const res = await fetch('/change-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword })
+                if (res.ok) {
+                    alert('Twoje hasło zostało zmienione!');
+                    document.getElementById('new-password-a').value = '';
+                    document.getElementById('user-dropdown-menu').classList.remove('show');
+                } else {
+                    const errData = await res.json();
+                    alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
+                }
             });
 
-            if (res.ok) {
-                alert('Twoje hasło zostało zmienione!');
-                document.getElementById('new-password-a').value = '';
-            } else {
-                const errData = await res.json();
-                alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
-            }
-        });
+            document.getElementById('change-pass-o-form')?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newPassword = document.getElementById('new-password-o').value;
+                const res = await fetch('/change-password-o', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword })
+                });
 
-        // Zmiana hasła użytkownika O (dla użytkownika A)
-        document.getElementById('change-pass-o-form')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newPassword = document.getElementById('new-password-o').value;
-
-            const res = await fetch('/change-password-o', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword })
+                if (res.ok) {
+                    alert('Hasło dla użytkownika O zostało zmienione!');
+                    document.getElementById('new-password-o').value = '';
+                    document.getElementById('user-dropdown-menu').classList.remove('show');
+                } else {
+                    const errData = await res.json();
+                    alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
+                }
             });
-
-            if (res.ok) {
-                alert('Hasło dla użytkownika O zostało zmienione!');
-                document.getElementById('new-password-o').value = '';
-            } else {
-                const errData = await res.json();
-                alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
-            }
-        });
+        }
 
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader();
