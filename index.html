@@ -3,72 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Czat - Znikające po 2 min</title>
+    <title>Pudelek - Gwiazdy, Plotki, Newsy</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; }
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; }
+        
+        /* Stylizacja nagłówka a'la portal plotkarski */
+        header { background-color: #e6005c; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        header h1 { margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; }
+        .login-btn-nav { background: white; color: #e6005c; border: none; padding: 8px 15px; font-weight: bold; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+        .login-btn-nav:hover { background: #ffe6f0; }
+
+        /* Atrapa treści wiadomości/portalowa */
+        .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
+        .fake-post { background: white; border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .fake-post img { width: 100%; height: 250px; object-fit: cover; background: #ddd; }
+        .fake-post-content { padding: 15px; }
+        .fake-post h2 { margin-top: 0; color: #111; font-size: 20px; }
+        .fake-post p { color: #666; font-size: 14px; line-height: 1.5; }
+
+        /* Panel aplikacji czatu (po zalogowaniu) */
+        .chat-app { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         textarea { width: 100%; height: 80px; margin-bottom: 10px; box-sizing: border-box; }
         input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; }
         input[type="file"] { margin-bottom: 15px; }
-        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; width: 100%; }
-        button:hover { background-color: #0056b3; }
-        .message-box { background: #f4f4f9; border-left: 4px solid #007bff; padding: 10px; margin: 10px 0; border-radius: 4px; }
-        .author { font-weight: bold; color: #007bff; }
+        button.action-btn { padding: 10px 20px; background-color: #e6005c; color: white; border: none; cursor: pointer; width: 100%; border-radius: 4px; font-weight: bold; }
+        button.action-btn:hover { background-color: #cc0052; }
+        
+        .message-box { background: #f9f9f9; border-left: 4px solid #e6005c; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .author { font-weight: bold; color: #e6005c; }
         .date { font-size: 11px; color: #777; margin-top: 5px; }
         .status { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 3px; }
-        .auth-box { background: #e9ecef; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
         .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .logout-btn { background-color: #dc3545; width: auto; padding: 5px 10px; font-size: 12px; }
+        .logout-btn { background-color: #dc3545; color: white; border: none; padding: 5px 10px; font-size: 12px; border-radius: 3px; cursor: pointer; }
         .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
+
+        /* Okno Modalne (Pop-up Logowania) */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 350px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .close-modal { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #aaa; }
+        .close-modal:hover { color: #000; }
     </style>
 </head>
 <body>
 
-    <div id="auth-section" class="auth-box">Sprawdzanie uprawnień...</div>
+    <header>
+        <h1>PUDELEK</h1>
+        <div id="nav-right">
+            <button class="login-btn-nav" id="open-login-btn">Zaloguj się</button>
+        </div>
+    </header>
 
-    <!-- Panel widoczny tylko dla użytkownika A -->
-    <div id="admin-section" class="admin-panel" style="display: none;">
-        <h3>Panel Użytkownika A: Zmiana hasła dla O</h3>
-        <form id="change-pass-form">
-            <label>Nowe hasło dla użytkownika O:</label>
-            <input type="password" id="new-password-o" placeholder="Wpisz nowe hasło..." required>
-            <button type="submit" style="background-color: #ffc107; color: #212529;">Zmień hasło dla O</button>
-        </form>
+    <div class="container">
+        
+        <!-- Wokół aplikacji czatu - Atrapa portalu (widoczna gdy użytkownik NIE JEST zalogowany) -->
+        <div id="public-landing">
+            <div class="fake-post">
+                <div style="background:#e0e0e0; height:200px; display:flex; align-items:center; justify-content:center; color:#777;">[Zdjęcie Gwiazdy]</div>
+                <div class="fake-post-content">
+                    <h2>Głośny rozwód w świecie show-biznesu! Znana para wydaje oświadczenie</h2>
+                    <p>Emocje sięgają zbiegu! Po latach milczenia podjęli ostateczną decyzję. Przeczytaj szczegóły relacji i zobacz zdjęcia z ich ostatniego wspólnego wyjścia...</p>
+                </div>
+            </div>
+            <div class="fake-post">
+                <div style="background:#d5d5d5; height:180px; display:flex; align-items:center; justify-content:center; color:#777;">[Zdjęcie z Czerwonego Dywanu]</div>
+                <div class="fake-post-content">
+                    <h2>Niewiarygodna stylizacja na gali w Warszawie! Przesadziła?</h2>
+                    <p>Fani nie zostawiają na niej suchej nitki. Wszyscy komentują ten odważny krok. Zobacz kreację, która wzbudziła tyle kontrowersji...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Główna aplikacja czatu (widoczna TYLKO po zalogowaniu) -->
+        <div id="protected-content" style="display: none;" class="chat-app">
+            
+            <!-- Panel A (Zmiana hasła dla O) -->
+            <div id="admin-section" class="admin-panel" style="display: none;">
+                <h3>Panel Użytkownika A: Zmiana hasła dla O</h3>
+                <form id="change-pass-form">
+                    <label>Nowe hasło dla użytkownika O:</label>
+                    <input type="password" id="new-password-o" placeholder="Wpisz nowe hasło..." required>
+                    <button type="submit" class="action-btn" style="background-color: #ffc107; color: #212529;">Zmień hasło dla O</button>
+                </form>
+            </div>
+
+            <h2>Prywatny Czat</h2>
+            <form id="message-form">
+                <textarea id="message-text" placeholder="Wpisz treść wiadomości..." required></textarea><br>
+                <label>Dodaj zdjęcie (opcjonalnie):</label><br>
+                <input type="file" id="message-image" accept="image/*"><br>
+                <button type="submit" class="action-btn">Wyślij wiadomość</button>
+            </form>
+
+            <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+
+            <h2>Wiadomości:</h2>
+            <div id="messages-container">Pobieranie wiadomości...</div>
+        </div>
+
     </div>
 
-    <div id="protected-content" style="display: none;">
-        <h2>Napisz wiadomość</h2>
-        <form id="message-form">
-            <textarea id="message-text" placeholder="Wpisz treść wiadomości..." required></textarea><br>
-            <label>Dodaj zdjęcie (opcjonalnie):</label><br>
-            <input type="file" id="message-image" accept="image/*"><br>
-            <button type="submit">Wyślij wiadomość</button>
-        </form>
-
-        <hr style="margin: 30px 0;">
-
-        <h2>Wiadomości:</h2>
-        <div id="messages-container">Pobieranie wiadomości...</div>
+    <!-- Okno pop-up z formularzem logowania -->
+    <div class="modal-overlay" id="login-modal">
+        <div class="modal-content">
+            <span class="close-modal" id="close-login-btn">&times;</span>
+            <h2 style="margin-top:0; color:#e6005c;">Logowanie</h2>
+            <form action="/login" method="POST">
+                <label>Login:</label>
+                <input type="text" name="username" required autocomplete="off">
+                <label>Hasło:</label>
+                <input type="password" name="password" required>
+                <button type="submit" class="action-btn">Zaloguj się</button>
+            </form>
+        </div>
     </div>
 
     <script>
         let currentUser = null;
 
+        const modal = document.getElementById('login-modal');
+        const openLoginBtn = document.getElementById('open-login-btn');
+        const closeLoginBtn = document.getElementById('close-login-btn');
+
+        // Obsługa otwierania i zamykania okna logowania
+        openLoginBtn.addEventListener('click', () => modal.style.display = 'flex');
+        closeLoginBtn.addEventListener('click', () => modal.style.display = 'none');
+        window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
         async function init() {
             const res = await fetch('/user');
             const data = await res.json();
-            const authDiv = document.getElementById('auth-section');
+            const navRight = document.getElementById('nav-right');
+            const publicLanding = document.getElementById('public-landing');
             const protectedContent = document.getElementById('protected-content');
             const adminSection = document.getElementById('admin-section');
 
             if (data.username) {
                 currentUser = data.username;
-                authDiv.innerHTML = `
-                    Zalogowano jako: <strong>${data.username}</strong> 
-                    <a href="/logout"><button class="logout-btn">Wyloguj się</button></a>
-                `;
+                
+                // Ukryj atrapę portalu i okno modalne, pokaż aplikację czatu
+                publicLanding.style.display = 'none';
                 protectedContent.style.display = 'block';
+                modal.style.display = 'none';
 
-                // Pokazuj panel zmiany hasła wyłącznie użytkownikowi A
+                navRight.innerHTML = `
+                    <span style="font-size:14px; margin-right:10px;">Zalogowano: <strong>${data.username}</strong></span>
+                    <a href="/logout"><button class="logout-btn">Wyloguj</button></a>
+                `;
+
                 if (currentUser === 'a') {
                     adminSection.style.display = 'block';
                 }
@@ -76,22 +157,18 @@
                 loadMessages();
                 setInterval(loadMessages, 3000);
             } else {
-                authDiv.innerHTML = `
-                    <h2>Logowanie</h2>
-                    <form action="/login" method="POST">
-                        <label>Login (a / o):</label>
-                        <input type="text" name="username" required>
-                        <label>Hasło:</label>
-                        <input type="password" name="password" required>
-                        <button type="submit">Zaloguj się</button>
-                    </form>
-                `;
+                publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
                 adminSection.style.display = 'none';
+                navRight.innerHTML = `<button class="login-btn-nav" id="open-login-btn-dynamic">Zaloguj się</button>`;
+                
+                document.getElementById('open-login-btn-dynamic').addEventListener('click', () => {
+                    modal.style.display = 'flex';
+                });
             }
         }
 
-        // Obsługa formularza zmiany hasła dla O
+        // Obsługa zmiany hasła O przez A
         document.getElementById('change-pass-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const newPassword = document.getElementById('new-password-o').value;
@@ -103,7 +180,7 @@
             });
 
             if (res.ok) {
-                alert('Hasło dla użytkownika O zostało pomyślnie zmienione!');
+                alert('Hasło dla użytkownika O zostało zmienione!');
                 document.getElementById('new-password-o').value = '';
             } else {
                 const errData = await res.json();
