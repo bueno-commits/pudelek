@@ -82,7 +82,8 @@
         <div id="protected-content" style="display: none;" class="chat-app">
             <h2>Prywatny Czat</h2>
             <form id="message-form">
-                <textarea id="message-text" placeholder="Wpisz treść wiadomości..." required></textarea><br>
+                <!-- Usunięto 'required', aby móc wysyłać samo zdjęcie -->
+                <textarea id="message-text" placeholder="Wpisz treść wiadomości (opcjonalnie)..."></textarea><br>
                 <label>Dodaj zdjęcie (opcjonalnie):</label><br>
                 <input type="file" id="message-image" accept="image/*"><br>
                 <button type="submit" class="action-btn">Wyślij wiadomość</button>
@@ -131,7 +132,6 @@
         });
 
         async function init() {
-            // SPRAWDZENIE SESJI PRZEGLĄDARKI (Gwarantuje ponowne logowanie po nowym otwarciu karty na iOS)
             if (!sessionStorage.getItem('activeTabSession')) {
                 await fetch('/logout');
             }
@@ -234,21 +234,33 @@
             });
         }
 
+        // NAPRAWIONA FUNKCJA KONWERSJI NA BASE64
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(resolveResult => resolve(reader.result));
+            reader.onload = () => resolve(reader.result);
             reader.onerror = error => reject(error);
         });
 
         document.getElementById('message-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const text = document.getElementById('message-text').value;
+            const text = document.getElementById('message-text').value.trim();
             const fileInput = document.getElementById('message-image');
             let imageBase64 = null;
 
+            // Sprawdzamy czy użytkownik podał chociaż jeden z elementów
+            if (!text && fileInput.files.length === 0) {
+                alert('Wpisz wiadomość lub wybierz zdjęcie do wysłania.');
+                return;
+            }
+
             if (fileInput.files.length > 0) {
-                imageBase64 = await toBase64(fileInput.files[0]);
+                try {
+                    imageBase64 = await toBase64(fileInput.files[0]);
+                } catch (err) {
+                    alert('Błąd wczytywania pliku graficznego.');
+                    return;
+                }
             }
 
             const res = await fetch('/send', {
@@ -262,7 +274,8 @@
                 fileInput.value = '';
                 loadMessages();
             } else {
-                alert('Błąd wysyłania wiadomości.');
+                const errData = await res.json();
+                alert(errData.error || 'Błąd wysyłania wiadomości.');
             }
         });
 
@@ -286,10 +299,8 @@
                     const date = new Date(msg.createdAt).toLocaleString('pl-PL');
                     const author = msg.author || 'Anonim';
                     
-                    let imgTag = '';
-                    if (msg.image) {
-                        imgTag = `<img src="${msg.image}" class="uploaded-img" alt="Załączone zdjęcie">`;
-                    }
+                    let contentHtml = msg.content ? `<div><span class="author">${author}:</span> ${msg.content}</div>` : `<div><span class="author">${author}</span></div>`;
+                    let imgTag = msg.image ? `<img src="${msg.image}" class="uploaded-img" alt="Załączone zdjęcie">` : '';
 
                     let statusText = '';
                     if (msg.readAt) {
@@ -299,7 +310,7 @@
                     }
 
                     div.innerHTML = `
-                        <div><span class="author">${author}:</span> ${msg.content}</div>
+                        ${contentHtml}
                         ${imgTag}
                         <div class="date">Dodano: ${date}</div>
                         ${statusText}
@@ -311,23 +322,16 @@
             }
         }
 
-        // UNIWERSALNE WYLOGOWANIE (dla iOS, Android oraz Windows)
         function forceLogout() {
             if (!currentUser) return;
-            
-            // 1. Wysyłanie przez Beacon API
             if (navigator.sendBeacon) {
                 navigator.sendBeacon('/logout');
             }
-            
-            // 2. Wycofanie dla iOS Safari z opcją keepalive
             fetch('/logout', { method: 'POST', keepalive: true }).catch(() => {});
         }
 
-        // Dedykowany listener dla mobilnego Safari (iOS)
         window.addEventListener('pagehide', forceLogout);
         
-        // Listener dla przejścia w tło
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 forceLogout();
