@@ -5,8 +5,9 @@ const session = require('express-session');
 
 const app = express();
 
-app.use(express.urlencoded({ limit: '5mb', extended: true }));
-app.use(express.json({ limit: '5mb' }));
+// Zwiększenie limitu przyjmowanych danych w formacie JSON i formularzach do 15 MB
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
+app.use(express.json({ limit: '15mb' }));
 
 app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -155,6 +156,14 @@ app.get('/messages', async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania wiadomości' });
     }
+});
+
+// Obsługa błędu przekroczenia rozmiaru pliku (413)
+app.use((err, req, res, next) => {
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Załączone zdjęcie jest za duże! Maksymalny rozmiar pliku to ok. 10 MB.' });
+    }
+    next(err);
 });
 
 const PORT = process.env.PORT || 3000;
