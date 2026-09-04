@@ -306,6 +306,13 @@
             }
         }
 
+        // Natychmiastowe wylogowanie w tle podczas zamykania karty/okna
+        window.addEventListener('pagehide', () => {
+            if (currentUser) {
+                navigator.sendBeacon('/logout');
+            }
+        });
+
         init();
     </script>
 
