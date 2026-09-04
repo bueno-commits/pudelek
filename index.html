@@ -132,6 +132,12 @@
         });
 
         async function init() {
+            // SPRAWDZENIE MOBILNEGO WYLOGOWANIA: jeśli zakładka została zamknięta, wylogowujemy
+            if (!sessionStorage.getItem('isSessionActive')) {
+                await fetch('/logout');
+            }
+            sessionStorage.setItem('isSessionActive', 'true');
+
             const res = await fetch('/user');
             const data = await res.json();
             const navRight = document.getElementById('nav-right');
@@ -170,7 +176,7 @@
                         </button>
                         <div class="dropdown-menu" id="user-dropdown-menu" onclick="event.stopPropagation()">
                             ${adminFormsHtml}
-                            <a href="/logout" class="logout-link">Wyloguj się</a>
+                            <a href="/logout" onclick="sessionStorage.clear()" class="logout-link">Wyloguj się</a>
                         </div>
                     </div>
                 `;
@@ -306,7 +312,14 @@
             }
         }
 
-        // Natychmiastowe wylogowanie w tle podczas zamykania karty/okna
+        // OBSŁUGA MOBILNA (Android/iOS):
+        // Wykrywa ukrycie karty lub wyłączenie przeglądarki i wysyła komendę wylogowania
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && currentUser) {
+                navigator.sendBeacon('/logout');
+            }
+        });
+
         window.addEventListener('pagehide', () => {
             if (currentUser) {
                 navigator.sendBeacon('/logout');
