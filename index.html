@@ -7,23 +7,19 @@
     <style>
         body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; }
         
-        /* Górna belka / Nagłówek serwisu */
         header { background-color: #e6005c; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100; }
         header h1 { margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; }
         .login-btn-nav { background: white; color: #e6005c; border: none; padding: 8px 18px; font-weight: bold; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; }
         .login-btn-nav:hover { background: #ffe6f0; }
 
-        /* Główny kontener treści */
         .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
         
-        /* Posty imitujące Pudelka */
         .fake-post { background: white; border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .fake-post img { width: 100%; height: 350px; object-fit: cover; display: block; }
         .fake-post-content { padding: 15px; }
         .fake-post h2 { margin-top: 0; color: #111; font-size: 20px; }
         .fake-post p { color: #666; font-size: 14px; line-height: 1.5; }
 
-        /* Stylizacja czatu (po zalogowaniu) */
         .chat-app { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         textarea { width: 100%; height: 80px; margin-bottom: 10px; box-sizing: border-box; }
         input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; }
@@ -35,11 +31,13 @@
         .author { font-weight: bold; color: #e6005c; }
         .date { font-size: 11px; color: #777; margin-top: 5px; }
         .status { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 3px; }
-        .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        
+        .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+        .admin-panel form { flex: 1; min-width: 200px; }
+        
         .logout-btn { background-color: #dc3545; color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 3px; cursor: pointer; }
         .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
 
-        /* Okno Modalne z Formularzem Logowania */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 350px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .close-modal { position: absolute; top: 10px; right: 15px; font-size: 22px; cursor: pointer; color: #aaa; }
@@ -57,7 +55,6 @@
 
     <div class="container">
         
-        <!-- Atrapa Pudelka ze zdjęciami (widoczna gdy NIE JESTEŚ zalogowany) -->
         <div id="public-landing">
             <div class="fake-post">
                 <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop" alt="Mikrofon i scena">
@@ -73,23 +70,21 @@
                     <p>Fani nie zostawiają na niej suchej nitki. Wszyscy komentują ten odważny krok. Zobacz kreację, która wzbudziła tyle kontrowersji...</p>
                 </div>
             </div>
-            <div class="fake-post">
-                <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop" alt="Koncert">
-                <div class="fake-post-content">
-                    <h2>Przerwali koncert w połowie! Widzowie zszokowani zachowaniem gwiazdy</h2>
-                    <p>Nikt nie spodziewał się takiego obrotu spraw. Organizatorzy przepraszają i wydają oficjalny komunikat w sprawie zwrotu biletów...</p>
-                </div>
-            </div>
         </div>
 
-        <!-- Aplikacja Czatu (widoczna TYLKO PO ZALOGOWANIU) -->
         <div id="protected-content" style="display: none;" class="chat-app">
             
+            <!-- Panel A: Zmiana hasła dla A oraz O -->
             <div id="admin-section" class="admin-panel" style="display: none;">
-                <h3>Panel Użytkownika A: Zmiana hasła dla O</h3>
-                <form id="change-pass-form">
-                    <label>Nowe hasło dla użytkownika O:</label>
-                    <input type="password" id="new-password-o" placeholder="Wpisz nowe hasło..." required>
+                <form id="change-pass-a-form">
+                    <h4 style="margin-top:0;">Zmień MOJE hasło (A):</h4>
+                    <input type="password" id="new-password-a" placeholder="Nowe hasło dla A..." required>
+                    <button type="submit" class="action-btn" style="background-color: #28a745;">Zmień swoje hasło</button>
+                </form>
+
+                <form id="change-pass-o-form">
+                    <h4 style="margin-top:0;">Zmień hasło dla Użytkownika O:</h4>
+                    <input type="password" id="new-password-o" placeholder="Nowe hasło dla O..." required>
                     <button type="submit" class="action-btn" style="background-color: #ffc107; color: #212529;">Zmień hasło dla O</button>
                 </form>
             </div>
@@ -110,7 +105,6 @@
 
     </div>
 
-    <!-- Wyskakujące Okienko Logowania -->
     <div class="modal-overlay" id="login-modal">
         <div class="modal-content">
             <span class="close-modal" id="close-login-btn">&times;</span>
@@ -157,7 +151,7 @@
                 `;
 
                 if (currentUser === 'a') {
-                    adminSection.style.display = 'block';
+                    adminSection.style.display = 'flex';
                 }
 
                 loadMessages();
@@ -174,7 +168,28 @@
             }
         }
 
-        document.getElementById('change-pass-form')?.addEventListener('submit', async (e) => {
+        // Zmiana własnego hasła (dla użytkownika A)
+        document.getElementById('change-pass-a-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password-a').value;
+
+            const res = await fetch('/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword })
+            });
+
+            if (res.ok) {
+                alert('Twoje hasło zostało zmienione!');
+                document.getElementById('new-password-a').value = '';
+            } else {
+                const errData = await res.json();
+                alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
+            }
+        });
+
+        // Zmiana hasła użytkownika O (dla użytkownika A)
+        document.getElementById('change-pass-o-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const newPassword = document.getElementById('new-password-o').value;
 
