@@ -66,8 +66,8 @@
             <div class="fake-post">
                 <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop" alt="Mikrofon i scena">
                 <div class="fake-post-content">
-                    <h2>Głośny rozwód w świecie show-biznesu! Znana para wydaje oświadczenie</h2>
-                    <p>Emocje sięgają zelżenia! Po latach milczenia podjęli ostateczną decyzję. Przeczytaj szczegóły relacji i zobacz zdjęcia z ich ostatniego wspólnego wyjścia...</p>
+                    <h2>Spektakularny powrót na scenę! Znana wokalistka ogłasza trasę koncertową</h2>
+                    <p>Bilety wyprzedały się w zaledwie kilka minut! Fani są zachwyceni, a artystka szykuje niesamowite widowisko. Zobacz pierwszy zwiastun i pierwsze zdjęcia z prób...</p>
                 </div>
             </div>
             <div class="fake-post">
@@ -82,7 +82,6 @@
         <div id="protected-content" style="display: none;" class="chat-app">
             <h2>Prywatny Czat</h2>
             <form id="message-form">
-                <!-- Usunięto 'required', aby móc wysyłać samo zdjęcie -->
                 <textarea id="message-text" placeholder="Wpisz treść wiadomości (opcjonalnie)..."></textarea><br>
                 <label>Dodaj zdjęcie (opcjonalnie):</label><br>
                 <input type="file" id="message-image" accept="image/*"><br>
@@ -234,7 +233,6 @@
             });
         }
 
-        // NAPRAWIONA FUNKCJA KONWERSJI NA BASE64
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -248,7 +246,6 @@
             const fileInput = document.getElementById('message-image');
             let imageBase64 = null;
 
-            // Sprawdzamy czy użytkownik podał chociaż jeden z elementów
             if (!text && fileInput.files.length === 0) {
                 alert('Wpisz wiadomość lub wybierz zdjęcie do wysłania.');
                 return;
