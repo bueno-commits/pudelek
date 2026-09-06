@@ -41,9 +41,10 @@
         .message-box { background: #f9f9f9; border-left: 4px solid #e6005c; padding: 10px; margin: 10px 0; border-radius: 4px; }
         .author { font-weight: bold; color: #e6005c; }
         .date { font-size: 11px; color: #777; margin-top: 5px; }
-        .status-unread { font-size: 11px; color: #888; font-style: italic; margin-top: 5px; }
+        
+        .status-unread { font-size: 12px; color: #888; font-style: italic; margin-top: 5px; font-weight: bold; }
         .status-read { font-size: 12px; color: #28a745; font-weight: bold; margin-top: 5px; }
-        .status-timer { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 2px; }
+        .status-timer { font-size: 12px; color: #d9534f; font-weight: bold; margin-top: 3px; background: #fff0f0; padding: 4px 8px; border-radius: 4px; display: inline-block; }
         
         .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
 
@@ -125,9 +126,7 @@
         closeLoginBtn?.addEventListener('click', () => modal.style.display = 'none');
         window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
-        loginForm?.addEventListener('submit', () => {
-            isSubmittingLogin = true;
-        });
+        loginForm?.addEventListener('submit', () => { isSubmittingLogin = true; });
 
         function toggleDropdown(e) {
             e.stopPropagation();
@@ -139,14 +138,14 @@
         });
 
         async function init() {
-            const res = await fetch('/user');
+            const res = await fetch('/user?t=' + Date.now());
             const data = await res.json();
             const navRight = document.getElementById('nav-right');
             const publicLanding = document.getElementById('public-landing');
             const protectedContent = document.getElementById('protected-content');
 
             if (data.username) {
-                currentUser = data.username;
+                currentUser = data.username.toLowerCase();
                 
                 publicLanding.style.display = 'none';
                 protectedContent.style.display = 'block';
@@ -173,7 +172,7 @@
                 navRight.innerHTML = `
                     <div class="user-dropdown">
                         <button class="user-btn" onclick="toggleDropdown(event)">
-                            Konto: ${data.username.toUpperCase()} ▾
+                            Konto: ${currentUser.toUpperCase()} ▾
                         </button>
                         <div class="dropdown-menu" id="user-dropdown-menu" onclick="event.stopPropagation()">
                             ${adminFormsHtml}
@@ -184,7 +183,7 @@
 
                 setupPasswordForms();
                 loadMessages();
-                setInterval(loadMessages, 2000);
+                setInterval(loadMessages, 1000); // Pobieraj co 1 sekundę
             } else {
                 publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
@@ -210,9 +209,6 @@
                     alert('Twoje hasło zostało zmienione!');
                     document.getElementById('new-password-a').value = '';
                     document.getElementById('user-dropdown-menu').classList.remove('show');
-                } else {
-                    const errData = await res.json();
-                    alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
                 }
             });
 
@@ -226,12 +222,9 @@
                 });
 
                 if (res.ok) {
-                    alert('Hasło dla użytkownika O zostało zmienione!');
+                    alert('Hasło dla O zostało zmienione!');
                     document.getElementById('new-password-o').value = '';
                     document.getElementById('user-dropdown-menu').classList.remove('show');
-                } else {
-                    const errData = await res.json();
-                    alert('Błąd: ' + (errData.error || 'Nie udało się zmienić hasła.'));
                 }
             });
         }
@@ -250,7 +243,7 @@
             let imageBase64 = null;
 
             if (!text && fileInput.files.length === 0) {
-                alert('Wpisz wiadomość lub wybierz zdjęcie do wysłania.');
+                alert('Wpisz wiadomość lub wybierz zdjęcie.');
                 return;
             }
 
@@ -258,7 +251,7 @@
                 try {
                     imageBase64 = await toBase64(fileInput.files[0]);
                 } catch (err) {
-                    alert('Błąd wczytywania pliku graficznego.');
+                    alert('Błąd wczytywania pliku.');
                     return;
                 }
             }
@@ -273,15 +266,13 @@
                 document.getElementById('message-text').value = '';
                 fileInput.value = '';
                 loadMessages();
-            } else {
-                const errData = await res.json();
-                alert(errData.error || 'Błąd wysyłania wiadomości.');
             }
         });
 
         async function loadMessages() {
             try {
-                const response = await fetch('/messages');
+                // Zapobieganie zapamiętywaniu odpowiedzi przez przeglądarkę
+                const response = await fetch('/messages?t=' + Date.now());
                 if (response.status === 401) return;
 
                 const messages = await response.json();
@@ -293,6 +284,8 @@
                     return;
                 }
 
+                const nowMs = Date.now();
+
                 messages.forEach(msg => {
                     const div = document.createElement('div');
                     div.className = 'message-box';
@@ -300,20 +293,26 @@
                     const author = msg.author || 'Anonim';
                     
                     let contentHtml = msg.content ? `<div><span class="author">${author}:</span> ${msg.content}</div>` : `<div><span class="author">${author}</span></div>`;
-                    let imgTag = msg.image ? `<img src="${msg.image}" class="uploaded-img" alt="Załączone zdjęcie">` : '';
+                    let imgTag = msg.image ? `<img src="${msg.image}" class="uploaded-img" alt="Załącznik">` : '';
 
                     let statusHtml = '';
-                    
-                    // Pokazujemy stan odczytu użytkownikowi A dla jego wiadomości
+
+                    // Jeśli użytkownik to A, a autorem jest A -> pokaż status odczytu i odliczanie
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
-                            const readDate = new Date(msg.readAt).toLocaleString('pl-PL');
+                            const readTimeMs = new Date(msg.readAt).getTime();
+                            const readDateStr = new Date(msg.readAt).toLocaleString('pl-PL');
+                            
+                            // Wyliczenie pozostałych sekund do 2 minut (120 s)
+                            const secondsPassed = Math.floor((nowMs - readTimeMs) / 1000);
+                            const secondsLeft = Math.max(0, 120 - secondsPassed);
+
                             statusHtml = `
-                                <div class="status-read">✓ Odczytano przez O: ${readDate}</div>
-                                <div class="status-timer">⚠️ Wiadomość zniknie w ciągu 2 minut od odczytania</div>
+                                <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
+                                <div class="status-timer">⏱️ Wiadomość zniknie za: ${secondsLeft}s</div>
                             `;
                         } else {
-                            statusHtml = `<div class="status-unread">Jeszcze nieodczytano przez O</div>`;
+                            statusHtml = `<div class="status-unread">⌛ Jeszcze nieodczytana przez O</div>`;
                         }
                     }
 

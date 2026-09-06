@@ -8,11 +8,11 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Blokowanie pamięci podręcznej (cache)
+// Rygorystyczne wyłączenie cache dla wszystkich zapytań
 app.use((req, res, next) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
+    res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.header('Expires', '-1');
+    res.header('Pragma', 'no-cache');
     next();
 });
 
@@ -20,11 +20,7 @@ app.use(session({
     secret: 'tajny_klucz_pudelek',
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: null
-    }
+    cookie: { httpOnly: true, sameSite: 'lax', maxAge: null }
 }));
 
 const MONGO_URI = process.env.MONGO_URI || "TWOJ_LINK_Z_MONGODB_ATLAS";
@@ -149,20 +145,20 @@ app.get('/messages', async (req, res) => {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-        // 1. Usuń wiadomości, od których odczytania minęły 2 minuty
+        // 1. Kasuj wiadomości z bazy dopiero gdy od czytania minęły PEŁNE 2 minuty
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
 
-        // 2. Jeśli odbiera użytkownik O -> oznacz nieprzeczytane wiadomości od A jako odczytane TERAZ
+        // 2. Jeśli zalogowany jest O -> oznacz wszystkie odczytane przez niego wiadomości
         if (currentUser === 'o') {
             await Message.updateMany(
                 { author: 'a', readAt: null },
-                { readAt: now }
+                { $set: { readAt: now } }
             );
         }
 
-        // 3. Pobierz wszystkie wiadomości i zwróć do klienta
+        // 3. Pobierz wiadomości
         const messages = await Message.find().sort({ createdAt: -1 });
         res.json(messages);
 
