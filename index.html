@@ -304,6 +304,7 @@
 
                     let statusHtml = '';
                     
+                    // Pokazujemy stan odczytu użytkownikowi A dla jego wiadomości
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
                             const readDate = new Date(msg.readAt).toLocaleString('pl-PL');
@@ -329,7 +330,6 @@
             }
         }
 
-        // Wylogowujemy tylko wtedy, gdy przeładowanie NIE pochodzi z wysłania formularza logowania
         window.addEventListener('beforeunload', () => {
             if (!isSubmittingLogin && currentUser) {
                 if (navigator.sendBeacon) {

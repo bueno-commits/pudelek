@@ -8,6 +8,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Blokowanie pamięci podręcznej (cache)
 app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
@@ -56,8 +57,7 @@ const messageSchema = new mongoose.Schema({
     content: String,
     image: String,
     createdAt: { type: Date, default: Date.now },
-    readAt: { type: Date, default: null },
-    seenByAuthor: { type: Boolean, default: false }
+    readAt: { type: Date, default: null }
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -149,32 +149,22 @@ app.get('/messages', async (req, res) => {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-        // 1. Trwałe usuwanie z bazy po 2 minutach od odczytania
+        // 1. Usuń wiadomości, od których odczytania minęły 2 minuty
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
 
-        // 2. Pobierz aktualne wiadomości
-        const messages = await Message.find().sort({ createdAt: -1 });
-
-        // 3. Jeśli odbiorca czyta wiadomość drugiej osoby -> ustaw readAt
-        for (let msg of messages) {
-            if (msg.author !== currentUser && !msg.readAt) {
-                msg.readAt = now;
-                await msg.save();
-            }
-        }
-
-        // 4. Zwróć dane do przeglądarki
-        res.json(messages);
-
-        // 5. Dopiero po przesłaniu danych do A oznaczamy, że A odebrał informację o odczycie
-        if (currentUser === 'a') {
+        // 2. Jeśli odbiera użytkownik O -> oznacz nieprzeczytane wiadomości od A jako odczytane TERAZ
+        if (currentUser === 'o') {
             await Message.updateMany(
-                { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
-                { seenByAuthor: true }
+                { author: 'a', readAt: null },
+                { readAt: now }
             );
         }
+
+        // 3. Pobierz wszystkie wiadomości i zwróć do klienta
+        const messages = await Message.find().sort({ createdAt: -1 });
+        res.json(messages);
 
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania wiadomości' });
