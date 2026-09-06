@@ -41,8 +41,9 @@
         .message-box { background: #f9f9f9; border-left: 4px solid #e6005c; padding: 10px; margin: 10px 0; border-radius: 4px; }
         .author { font-weight: bold; color: #e6005c; }
         .date { font-size: 11px; color: #777; margin-top: 5px; }
-        .status { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 3px; }
-        .status-read { font-size: 11px; color: #28a745; font-weight: bold; margin-top: 3px; }
+        .status-unread { font-size: 11px; color: #888; font-style: italic; margin-top: 5px; }
+        .status-read { font-size: 12px; color: #28a745; font-weight: bold; margin-top: 5px; }
+        .status-timer { font-size: 11px; color: #d9534f; font-weight: bold; margin-top: 2px; }
         
         .uploaded-img { max-width: 100%; height: auto; border-radius: 5px; margin-top: 10px; display: block; }
 
@@ -132,6 +133,7 @@
         });
 
         async function init() {
+            // Szybkie sprawdzenie, czy to odświeżenie karty – jeśli tak, wymuszamy wylogowanie
             if (!sessionStorage.getItem('activeTabSession')) {
                 await fetch('/logout');
             }
@@ -182,13 +184,13 @@
 
                 setupPasswordForms();
                 loadMessages();
-                setInterval(loadMessages, 3000);
+                setInterval(loadMessages, 2000);
             } else {
                 publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
                 navRight.innerHTML = `<button class="login-btn-nav" id="open-login-btn-dynamic">Zaloguj się</button>`;
                 
-                document.getElementById('open-login-btn-dynamic').addEventListener('click', () => {
+                document.getElementById('open-login-btn-dynamic')?.addEventListener('click', () => {
                     modal.style.display = 'flex';
                 });
             }
@@ -300,18 +302,18 @@
                     let contentHtml = msg.content ? `<div><span class="author">${author}:</span> ${msg.content}</div>` : `<div><span class="author">${author}</span></div>`;
                     let imgTag = msg.image ? `<img src="${msg.image}" class="uploaded-img" alt="Załączone zdjęcie">` : '';
 
-                    let statusText = '';
+                    let statusHtml = '';
                     
-                    // Pokazujemy informacje TYLKO dla użytkownika A
+                    // Pokazujemy informacje o odczycie I odliczanie TYLKO użytkownikowi A dla jego wiadomości
                     if (currentUser === 'a' && msg.author === 'a') {
-                        if (msg.readAt && !msg.seenByAuthor) {
-                            const readDate = new Date(msg.readAt).toLocaleString('pl-PL');
-                            statusText = `<div class="status-read">✓ Odczytano przez O: ${readDate}</div>`;
-                        }
-                        
-                        // Dodatkowe ostrzeżenie o znikaniu po odczytaniu
                         if (msg.readAt) {
-                            statusText += `<div class="status">⚠️ Wiadomość zostanie trwale usunięta w ciągu 2 minut od odczytania!</div>`;
+                            const readDate = new Date(msg.readAt).toLocaleString('pl-PL');
+                            statusHtml = `
+                                <div class="status-read">✓ Odczytano przez O: ${readDate}</div>
+                                <div class="status-timer">⚠️ Wiadomość zniknie w ciągu 2 minut od odczytania</div>
+                            `;
+                        } else {
+                            statusHtml = `<div class="status-unread">Jeszcze nieodczytano przez O</div>`;
                         }
                     }
 
@@ -319,28 +321,20 @@
                         ${contentHtml}
                         ${imgTag}
                         <div class="date">Dodano: ${date}</div>
-                        ${statusText}
+                        ${statusHtml}
                     `;
                     container.appendChild(div);
                 });
             } catch (err) {
-                document.getElementById('messages-container').innerText = 'Błąd wczytywania wiadomości.';
+                console.error(err);
             }
         }
 
-        function forceLogout() {
-            if (!currentUser) return;
+        // Wylogowanie przy przeładowaniu karty lub opuszczeniu strony
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.clear();
             if (navigator.sendBeacon) {
                 navigator.sendBeacon('/logout');
-            }
-            fetch('/logout', { method: 'POST', keepalive: true }).catch(() => {});
-        }
-
-        window.addEventListener('pagehide', forceLogout);
-        
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                forceLogout();
             }
         });
 
