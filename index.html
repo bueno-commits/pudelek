@@ -102,7 +102,7 @@
         <div class="modal-content">
             <span class="close-modal" id="close-login-btn">&times;</span>
             <h2 style="margin-top:0; color:#e6005c;">Logowanie</h2>
-            <form action="/login" method="POST">
+            <form id="login-form" action="/login" method="POST">
                 <label>Login:</label>
                 <input type="text" name="username" required autocomplete="off">
                 <label>Hasło:</label>
@@ -114,14 +114,20 @@
 
     <script>
         let currentUser = null;
+        let isSubmittingLogin = false;
 
         const modal = document.getElementById('login-modal');
         const openLoginBtn = document.getElementById('open-login-btn');
         const closeLoginBtn = document.getElementById('close-login-btn');
+        const loginForm = document.getElementById('login-form');
 
         openLoginBtn?.addEventListener('click', () => modal.style.display = 'flex');
         closeLoginBtn?.addEventListener('click', () => modal.style.display = 'none');
         window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+        loginForm?.addEventListener('submit', () => {
+            isSubmittingLogin = true;
+        });
 
         function toggleDropdown(e) {
             e.stopPropagation();
@@ -133,12 +139,6 @@
         });
 
         async function init() {
-            // Szybkie sprawdzenie, czy to odświeżenie karty – jeśli tak, wymuszamy wylogowanie
-            if (!sessionStorage.getItem('activeTabSession')) {
-                await fetch('/logout');
-            }
-            sessionStorage.setItem('activeTabSession', 'true');
-
             const res = await fetch('/user');
             const data = await res.json();
             const navRight = document.getElementById('nav-right');
@@ -177,7 +177,7 @@
                         </button>
                         <div class="dropdown-menu" id="user-dropdown-menu" onclick="event.stopPropagation()">
                             ${adminFormsHtml}
-                            <a href="/logout" onclick="sessionStorage.clear()" class="logout-link">Wyloguj się</a>
+                            <a href="/logout" class="logout-link">Wyloguj się</a>
                         </div>
                     </div>
                 `;
@@ -304,7 +304,6 @@
 
                     let statusHtml = '';
                     
-                    // Pokazujemy informacje o odczycie I odliczanie TYLKO użytkownikowi A dla jego wiadomości
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
                             const readDate = new Date(msg.readAt).toLocaleString('pl-PL');
@@ -330,11 +329,12 @@
             }
         }
 
-        // Wylogowanie przy przeładowaniu karty lub opuszczeniu strony
+        // Wylogowujemy tylko wtedy, gdy przeładowanie NIE pochodzi z wysłania formularza logowania
         window.addEventListener('beforeunload', () => {
-            sessionStorage.clear();
-            if (navigator.sendBeacon) {
-                navigator.sendBeacon('/logout');
+            if (!isSubmittingLogin && currentUser) {
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/logout');
+                }
             }
         });
 
