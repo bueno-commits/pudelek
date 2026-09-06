@@ -284,6 +284,7 @@
                 }
 
                 const nowMs = Date.now();
+                let shouldAck = false;
 
                 messages.forEach(msg => {
                     const div = document.createElement('div');
@@ -296,9 +297,10 @@
 
                     let statusHtml = '';
 
-                    // Jeśli zalogowany użytkownik to A i jest autorem tej wiadomości
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
+                            shouldAck = true;
+
                             const readTimeMs = new Date(msg.readAt).getTime();
                             const readDateStr = new Date(msg.readAt).toLocaleString('pl-PL');
                             const secondsPassed = Math.floor((nowMs - readTimeMs) / 1000);
@@ -306,7 +308,7 @@
 
                             let timerText = secondsLeft > 0 
                                 ? `⏱️ Wiadomość zniknie za: ${secondsLeft}s` 
-                                : `⚠️ Wiadomość odczytana (za chwilę zniknie)`;
+                                : `⚠️ Odczytano wcześniej (za chwilę zniknie)`;
 
                             statusHtml = `
                                 <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
@@ -325,6 +327,11 @@
                     `;
                     container.appendChild(div);
                 });
+
+                if (currentUser === 'a' && shouldAck) {
+                    await fetch('/messages/ack', { method: 'POST' });
+                }
+
             } catch (err) {
                 console.error(err);
             }

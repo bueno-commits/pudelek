@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Blokowanie pamięci podręcznej (cache)
+// Rygorystyczne wyłączenie pamięci podręcznej (cache)
 app.use((req, res, next) => {
     res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.header('Expires', '-1');
@@ -147,13 +147,13 @@ app.get('/messages', async (req, res) => {
         const TWO_MINUTES_MS = 2 * 60 * 1000;
         const twoMinutesAgo = new Date(now.getTime() - TWO_MINUTES_MS);
 
-        // 1. Usuń trwale wiadomości z bazy TYLKO gdy minęły 2 minuty od odczytania ORAZ A je zobaczył
+        // 1. Usuń trwale wiadomości z bazy TYLKO gdy minęły 2 minuty od odczytania ORAZ A je fizycznie zobaczył na ekranie
         await Message.deleteMany({
             readAt: { $ne: null, $lte: twoMinutesAgo },
             seenByAuthor: true
         });
 
-        // 2. Jeśli zalogowany jest O -> oznacz nowe nieprzeczytane wiadomości od A
+        // 2. Jeśli zalogowany jest O -> oznacz nowe nieprzeczytane wiadomości od A jako odczytane TERAZ
         if (currentUser === 'o') {
             await Message.updateMany(
                 { author: 'a', readAt: null },
@@ -164,30 +164,36 @@ app.get('/messages', async (req, res) => {
         // 3. Pobierz wiadomości z bazy
         let messages = await Message.find().sort({ createdAt: -1 });
 
-        // 4. Filtrowanie danych dla użytkownika O:
-        // Jeśli czyta O, to ukryj przed nim wiadomości od A, które były przeczytane dawniej niż 2 minuty temu
+        // 4. Ukryj przed O wiadomości od A, jeśli od ich odczytania minęły 2 minuty
         if (currentUser === 'o') {
             messages = messages.filter(msg => {
                 if (msg.author === 'a' && msg.readAt) {
-                    const isExpiredForO = new Date(msg.readAt) <= twoMinutesAgo;
-                    return !isExpiredForO; // usuń z widoku dla O
+                    return new Date(msg.readAt) > twoMinutesAgo;
                 }
                 return true;
             });
-        }
-
-        // 5. Jeśli zalogowany jest A -> oznacz, że zobaczył odczytane wiadomości (startuje jego 2-minutowe usuwanie z bazy)
-        if (currentUser === 'a') {
-            await Message.updateMany(
-                { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
-                { $set: { seenByAuthor: true } }
-            );
         }
 
         res.json(messages);
 
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania wiadomości' });
+    }
+});
+
+// Potwierdzenie wyświetlenia komunikatu przez A (uruchamia timer usuwania)
+app.post('/messages/ack', async (req, res) => {
+    const currentUser = req.session.username;
+    if (currentUser !== 'a') return res.sendStatus(200);
+
+    try {
+        await Message.updateMany(
+            { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
+            { $set: { seenByAuthor: true } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Błąd aktualizacji' });
     }
 });
 
