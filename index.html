@@ -305,12 +305,16 @@
                             
                             // Wyliczenie pozostałych sekund do 2 minut (120 s)
                             const secondsPassed = Math.floor((nowMs - readTimeMs) / 1000);
-                            const secondsLeft = Math.max(0, 120 - secondsPassed);
+const secondsLeft = 120 - secondsPassed;
 
-                            statusHtml = `
-                                <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
-                                <div class="status-timer">⏱️ Wiadomość zniknie za: ${secondsLeft}s</div>
-                            `;
+let timerText = secondsLeft > 0 
+    ? `⏱️ Wiadomość zniknie za: ${secondsLeft}s` 
+    ? `⚠️ Odczytano ponad 2 min. temu (zaraz zniknie)`;
+
+statusHtml = `
+    <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
+    <div class="status-timer">${timerText}</div>
+`;
                         } else {
                             statusHtml = `<div class="status-unread">⌛ Jeszcze nieodczytana przez O</div>`;
                         }
