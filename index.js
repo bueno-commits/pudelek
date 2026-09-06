@@ -5,11 +5,9 @@ const session = require('express-session');
 
 const app = express();
 
-// Limity ustawione na 50 MB dla dużych zdjęć
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Rygorystyczne blokowanie pamięci podręcznej (brak możliwości powrotu przyciskiem "Wstecz")
 app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
@@ -17,7 +15,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Konfiguracja sesji tymczasowej (wygasa z zamknięciem przeglądarki)
 app.use(session({
     secret: 'tajny_klucz_pudelek',
     resave: false,
@@ -59,7 +56,8 @@ const messageSchema = new mongoose.Schema({
     content: String,
     image: String,
     createdAt: { type: Date, default: Date.now },
-    readAt: { type: Date, default: null }
+    readAt: { type: Date, default: null },
+    seenByAuthor: { type: Boolean, default: false } // Flaga czy A widział już potwierdzenie
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -79,6 +77,13 @@ app.post('/login', async (req, res) => {
         const user = await User.findOne({ username: cleanUser, password: password });
         if (user) {
             req.session.username = user.username;
+            
+            // Jeśli loguje się użytkownik A - oznacz dotychczas odczytane wiadomości jako "zobaczone"
+            // Dzięki temu przy KOLEJNYM logowaniu flaga seenByAuthor będzie już true i komunikat zniknie
+            if (user.username === 'a') {
+                req.session.isFirstSessionAfterRead = true;
+            }
+
             res.redirect('/');
         } else {
             res.status(401).send('<h3>Błędny login lub hasło!</h3><a href="/">Wróć do logowania</a>');
@@ -88,17 +93,12 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Zmiana własnego hasła (np. dla użytkownika A)
 app.post('/change-password', async (req, res) => {
     const currentUser = req.session.username;
-    if (!currentUser) {
-        return res.status(401).json({ error: 'Brak dostępu' });
-    }
+    if (!currentUser) return res.status(401).json({ error: 'Brak dostępu' });
 
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.trim() === '') {
-        return res.status(400).json({ error: 'Hasło nie może być puste.' });
-    }
+    if (!newPassword || newPassword.trim() === '') return res.status(400).json({ error: 'Hasło nie może być puste.' });
 
     try {
         await User.updateOne({ username: currentUser }, { password: newPassword.trim() });
@@ -108,16 +108,11 @@ app.post('/change-password', async (req, res) => {
     }
 });
 
-// Zmiana hasła użytkownika O przez A
 app.post('/change-password-o', async (req, res) => {
-    if (req.session.username !== 'a') {
-        return res.status(403).json({ error: 'Brak uprawnień. Tylko użytkownik A może zmieniać hasło.' });
-    }
+    if (req.session.username !== 'a') return res.status(403).json({ error: 'Brak uprawnień.' });
 
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.trim() === '') {
-        return res.status(400).json({ error: 'Hasło nie może być puste.' });
-    }
+    if (!newPassword || newPassword.trim() === '') return res.status(400).json({ error: 'Hasło nie może być puste.' });
 
     try {
         await User.updateOne({ username: 'o' }, { password: newPassword.trim() });
@@ -127,8 +122,16 @@ app.post('/change-password-o', async (req, res) => {
     }
 });
 
-// Obsługa wylogowania (zarówno przez przycisk, jak i przy zamknięciu karty)
-app.all('/logout', (req, res) => {
+app.all('/logout', async (req, res) => {
+    const currentUser = req.session ? req.session.username : null;
+    
+    // Przy wylogowaniu A oznaczamy wiadomości jako "widziane"
+    if (currentUser === 'a') {
+        try {
+            await Message.updateMany({ author: 'a', readAt: { $ne: null } }, { seenByAuthor: true });
+        } catch (e) {}
+    }
+
     req.session.destroy(() => {
         res.clearCookie('connect.sid');
         if (req.method === 'POST') {
@@ -140,9 +143,7 @@ app.all('/logout', (req, res) => {
 });
 
 app.post('/send', async (req, res) => {
-    if (!req.session.username) {
-        return res.status(401).json({ error: 'Brak dostępu' });
-    }
+    if (!req.session.username) return res.status(401).json({ error: 'Brak dostępu' });
     try {
         const { message, image } = req.body;
         await Message.create({
@@ -158,14 +159,13 @@ app.post('/send', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
     const currentUser = req.session.username;
-    if (!currentUser) {
-        return res.status(401).json({ error: 'Brak dostępu' });
-    }
+    if (!currentUser) return res.status(401).json({ error: 'Brak dostępu' });
 
     try {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
+        // Trwałe usuwanie po 2 minutach od odczytania
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
@@ -173,6 +173,7 @@ app.get('/messages', async (req, res) => {
         const messages = await Message.find().sort({ createdAt: -1 });
 
         for (let msg of messages) {
+            // Jeśli druga osoba wchodzi i wiadomości jeszcze nie odczytała
             if (msg.author !== currentUser && !msg.readAt) {
                 msg.readAt = now;
                 await msg.save();
@@ -185,10 +186,9 @@ app.get('/messages', async (req, res) => {
     }
 });
 
-// Obsługa błędu zbyt dużego pliku
 app.use((err, req, res, next) => {
     if (err.type === 'entity.too.large') {
-        return res.status(413).json({ error: 'Plik jest zbyt duży! Wybierz mniejsze zdjęcie.' });
+        return res.status(413).json({ error: 'Plik jest zbyt duży!' });
     }
     next(err);
 });
