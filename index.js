@@ -77,16 +77,6 @@ app.post('/login', async (req, res) => {
         const user = await User.findOne({ username: cleanUser, password: password });
         if (user) {
             req.session.username = user.username;
-
-            // Jeśli loguje się A, oznaczamy wcześniej odczytane wiadomości jako zobaczone,
-            // aby przy KOLEJNYM logowaniu status odczytu już się nie pokazywał.
-            if (user.username === 'a') {
-                await Message.updateMany(
-                    { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
-                    { seenByAuthor: true }
-                );
-            }
-
             res.redirect('/');
         } else {
             res.status(401).send('<h3>Błędny login lub hasło!</h3><a href="/">Wróć do logowania</a>');
@@ -159,13 +149,15 @@ app.get('/messages', async (req, res) => {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-        // Trwałe usuwanie z bazy po 2 minutach od odczytania
+        // 1. Trwałe usuwanie z bazy po 2 minutach od odczytania
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
 
+        // 2. Pobierz aktualne wiadomości
         const messages = await Message.find().sort({ createdAt: -1 });
 
+        // 3. Jeśli odbiorca czyta wiadomość drugiej osoby -> ustaw readAt
         for (let msg of messages) {
             if (msg.author !== currentUser && !msg.readAt) {
                 msg.readAt = now;
@@ -173,7 +165,17 @@ app.get('/messages', async (req, res) => {
             }
         }
 
+        // 4. Zwróć dane do przeglądarki
         res.json(messages);
+
+        // 5. Dopiero po przesłaniu danych do A oznaczamy, że A odebrał informację o odczycie
+        if (currentUser === 'a') {
+            await Message.updateMany(
+                { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
+                { seenByAuthor: true }
+            );
+        }
+
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania wiadomości' });
     }
