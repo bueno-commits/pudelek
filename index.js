@@ -8,7 +8,6 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Wyłączenie pamięci podręcznej (cache)
 app.use((req, res, next) => {
     res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.header('Expires', '-1');
@@ -54,7 +53,7 @@ const messageSchema = new mongoose.Schema({
     image: String,
     createdAt: { type: Date, default: Date.now },
     readAt: { type: Date, default: null },
-    seenByAuthor: { type: Boolean, default: false }
+    seenByAuthorAt: { type: Date, default: null }
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -147,13 +146,12 @@ app.get('/messages', async (req, res) => {
         const TWO_MINUTES_MS = 2 * 60 * 1000;
         const twoMinutesAgo = new Date(now.getTime() - TWO_MINUTES_MS);
 
-        // 1. Usuń trwale z bazy, gdy minęły 2 minuty od odczytania ORAZ autor A fizycznie je zobaczył
+        // 1. Kasujemy trwale z bazy WYŁĄCZNIE jeśli minęły 2 minuty od kiedy A to zobaczył!
         await Message.deleteMany({
-            readAt: { $ne: null, $lte: twoMinutesAgo },
-            seenByAuthor: true
+            seenByAuthorAt: { $ne: null, $lte: twoMinutesAgo }
         });
 
-        // 2. Jeśli zalogowany jest O -> oznacz nieprzeczytane wiadomości
+        // 2. Jeśli zalogowany jest O -> oznacz nowe nieodczytane wiadomości
         if (currentUser === 'o') {
             await Message.updateMany(
                 { author: 'a', readAt: null },
@@ -161,10 +159,10 @@ app.get('/messages', async (req, res) => {
             );
         }
 
-        // 3. Pobierz wiadomości w trybie .lean() dla maksymalnej wydajności
+        // 3. Pobierz wiadomości
         let messages = await Message.find().sort({ createdAt: -1 }).lean();
 
-        // 4. Ukryj przed O wiadomości starsze niż 2 min od odczytu
+        // 4. Jeśli patrzy O -> ukrywamy przed nim wiadomości odczytane dawniej niż 2 minuty temu
         if (currentUser === 'o') {
             messages = messages.filter(msg => {
                 if (msg.author === 'a' && msg.readAt) {
@@ -181,15 +179,15 @@ app.get('/messages', async (req, res) => {
     }
 });
 
-// Potwierdzenie zobaczenia odczytu przez autora A
+// Zapamiętujemy dokładną datę i czas, kiedy autor A pierwszy raz ujrzał komunikat
 app.post('/messages/ack', async (req, res) => {
     const currentUser = req.session.username;
     if (currentUser !== 'a') return res.sendStatus(200);
 
     try {
         await Message.updateMany(
-            { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
-            { $set: { seenByAuthor: true } }
+            { author: 'a', readAt: { $ne: null }, seenByAuthorAt: null },
+            { $set: { seenByAuthorAt: new Date() } }
         );
         res.json({ success: true });
     } catch (err) {
@@ -197,7 +195,6 @@ app.post('/messages/ack', async (req, res) => {
     }
 });
 
-// Trasa do czyszczenia całej bazy wiadomości
 app.get('/reset-db', async (req, res) => {
     try {
         await Message.deleteMany({});
