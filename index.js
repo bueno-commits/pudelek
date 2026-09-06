@@ -57,7 +57,7 @@ const messageSchema = new mongoose.Schema({
     image: String,
     createdAt: { type: Date, default: Date.now },
     readAt: { type: Date, default: null },
-    seenByAuthor: { type: Boolean, default: false } // Flaga czy A widział już potwierdzenie
+    seenByAuthor: { type: Boolean, default: false }
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -77,11 +77,14 @@ app.post('/login', async (req, res) => {
         const user = await User.findOne({ username: cleanUser, password: password });
         if (user) {
             req.session.username = user.username;
-            
-            // Jeśli loguje się użytkownik A - oznacz dotychczas odczytane wiadomości jako "zobaczone"
-            // Dzięki temu przy KOLEJNYM logowaniu flaga seenByAuthor będzie już true i komunikat zniknie
+
+            // Jeśli loguje się A, oznaczamy wcześniej odczytane wiadomości jako zobaczone,
+            // aby przy KOLEJNYM logowaniu status odczytu już się nie pokazywał.
             if (user.username === 'a') {
-                req.session.isFirstSessionAfterRead = true;
+                await Message.updateMany(
+                    { author: 'a', readAt: { $ne: null }, seenByAuthor: false },
+                    { seenByAuthor: true }
+                );
             }
 
             res.redirect('/');
@@ -122,16 +125,7 @@ app.post('/change-password-o', async (req, res) => {
     }
 });
 
-app.all('/logout', async (req, res) => {
-    const currentUser = req.session ? req.session.username : null;
-    
-    // Przy wylogowaniu A oznaczamy wiadomości jako "widziane"
-    if (currentUser === 'a') {
-        try {
-            await Message.updateMany({ author: 'a', readAt: { $ne: null } }, { seenByAuthor: true });
-        } catch (e) {}
-    }
-
+app.all('/logout', (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid');
         if (req.method === 'POST') {
@@ -165,7 +159,7 @@ app.get('/messages', async (req, res) => {
         const now = new Date();
         const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-        // Trwałe usuwanie po 2 minutach od odczytania
+        // Trwałe usuwanie z bazy po 2 minutach od odczytania
         await Message.deleteMany({
             readAt: { $ne: null, $lte: new Date(now.getTime() - TWO_MINUTES_MS) }
         });
@@ -173,7 +167,6 @@ app.get('/messages', async (req, res) => {
         const messages = await Message.find().sort({ createdAt: -1 });
 
         for (let msg of messages) {
-            // Jeśli druga osoba wchodzi i wiadomości jeszcze nie odczytała
             if (msg.author !== currentUser && !msg.readAt) {
                 msg.readAt = now;
                 await msg.save();
