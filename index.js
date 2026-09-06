@@ -197,6 +197,16 @@ app.post('/messages/ack', async (req, res) => {
     }
 });
 
+// Trasa do czyszczenia całej bazy wiadomości
+app.get('/reset-db', async (req, res) => {
+    try {
+        await Message.deleteMany({});
+        res.send('<h1>Baza zostala wyczyszczona!</h1><a href="/">Wroc do strony glownej</a>');
+    } catch (err) {
+        res.status(500).send('Blad: ' + err.message);
+    }
+});
+
 app.use((err, req, res, next) => {
     if (err.type === 'entity.too.large') {
         return res.status(413).json({ error: 'Plik jest zbyt duży!' });
