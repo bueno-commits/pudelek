@@ -183,7 +183,7 @@
 
                 setupPasswordForms();
                 loadMessages();
-                setInterval(loadMessages, 1000); // Pobieraj co 1 sekundę
+                setInterval(loadMessages, 1000);
             } else {
                 publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
@@ -271,7 +271,6 @@
 
         async function loadMessages() {
             try {
-                // Zapobieganie zapamiętywaniu odpowiedzi przez przeglądarkę
                 const response = await fetch('/messages?t=' + Date.now());
                 if (response.status === 401) return;
 
@@ -297,24 +296,22 @@
 
                     let statusHtml = '';
 
-                    // Jeśli użytkownik to A, a autorem jest A -> pokaż status odczytu i odliczanie
+                    // Jeśli zalogowany użytkownik to A i jest autorem tej wiadomości
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
                             const readTimeMs = new Date(msg.readAt).getTime();
                             const readDateStr = new Date(msg.readAt).toLocaleString('pl-PL');
-                            
-                            // Wyliczenie pozostałych sekund do 2 minut (120 s)
                             const secondsPassed = Math.floor((nowMs - readTimeMs) / 1000);
-const secondsLeft = 120 - secondsPassed;
+                            const secondsLeft = 120 - secondsPassed;
 
-let timerText = secondsLeft > 0 
-    ? `⏱️ Wiadomość zniknie za: ${secondsLeft}s` 
-    ? `⚠️ Odczytano ponad 2 min. temu (zaraz zniknie)`;
+                            let timerText = secondsLeft > 0 
+                                ? `⏱️ Wiadomość zniknie za: ${secondsLeft}s` 
+                                : `⚠️ Wiadomość odczytana (za chwilę zniknie)`;
 
-statusHtml = `
-    <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
-    <div class="status-timer">${timerText}</div>
-`;
+                            statusHtml = `
+                                <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
+                                <div class="status-timer">${timerText}</div>
+                            `;
                         } else {
                             statusHtml = `<div class="status-unread">⌛ Jeszcze nieodczytana przez O</div>`;
                         }
