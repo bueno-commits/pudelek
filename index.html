@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
@@ -183,7 +183,6 @@
 
                 setupPasswordForms();
                 loadMessages();
-                // Odświeżanie co 2.5 sekundy zapobiega przeciążeniom sieci
                 setInterval(loadMessages, 2500);
             } else {
                 publicLanding.style.display = 'block';
@@ -230,7 +229,6 @@
             });
         }
 
-        // Kompresja pliku graficznego przed wysłaniem
         const compressAndBase64 = (file) => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -321,20 +319,18 @@
 
                     if (currentUser === 'a' && msg.author === 'a') {
                         if (msg.readAt) {
-                            shouldAck = true;
+                            if (!msg.seenByAuthorAt) {
+                                shouldAck = true;
+                            }
 
-                            const readTimeMs = new Date(msg.readAt).getTime();
+                            const startTimeMs = msg.seenByAuthorAt ? new Date(msg.seenByAuthorAt).getTime() : nowMs;
                             const readDateStr = new Date(msg.readAt).toLocaleString('pl-PL');
-                            const secondsPassed = Math.floor((nowMs - readTimeMs) / 1000);
-                            const secondsLeft = 120 - secondsPassed;
-
-                            let timerText = secondsLeft > 0 
-                                ? `⏱️ Wiadomość zniknie za: ${secondsLeft}s` 
-                                : `⚠️ Odczytano wcześniej (za chwilę zniknie)`;
+                            const secondsPassed = Math.floor((nowMs - startTimeMs) / 1000);
+                            const secondsLeft = Math.max(0, 120 - secondsPassed);
 
                             statusHtml = `
                                 <div class="status-read">✓ Odczytano przez O: ${readDateStr}</div>
-                                <div class="status-timer">${timerText}</div>
+                                <div class="status-timer">⏱️ Wiadomość zniknie za: ${secondsLeft}s</div>
                             `;
                         } else {
                             statusHtml = `<div class="status-unread">⌛ Jeszcze nieodczytana przez O</div>`;
