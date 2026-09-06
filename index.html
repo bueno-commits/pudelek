@@ -183,7 +183,8 @@
 
                 setupPasswordForms();
                 loadMessages();
-                setInterval(loadMessages, 1000);
+                // Odświeżanie co 2.5 sekundy zapobiega przeciążeniom sieci
+                setInterval(loadMessages, 2500);
             } else {
                 publicLanding.style.display = 'block';
                 protectedContent.style.display = 'none';
@@ -229,10 +230,31 @@
             });
         }
 
-        const toBase64 = file => new Promise((resolve, reject) => {
+        // Kompresja pliku graficznego przed wysłaniem
+        const compressAndBase64 = (file) => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    
+                    if (scaleSize < 1) {
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+                    } else {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                    }
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+            };
             reader.onerror = error => reject(error);
         });
 
@@ -249,9 +271,9 @@
 
             if (fileInput.files.length > 0) {
                 try {
-                    imageBase64 = await toBase64(fileInput.files[0]);
+                    imageBase64 = await compressAndBase64(fileInput.files[0]);
                 } catch (err) {
-                    alert('Błąd wczytywania pliku.');
+                    alert('Błąd dodawania pliku.');
                     return;
                 }
             }

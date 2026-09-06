@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Rygorystyczne wyłączenie pamięci podręcznej (cache)
+// Wyłączenie pamięci podręcznej (cache)
 app.use((req, res, next) => {
     res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.header('Expires', '-1');
@@ -147,13 +147,13 @@ app.get('/messages', async (req, res) => {
         const TWO_MINUTES_MS = 2 * 60 * 1000;
         const twoMinutesAgo = new Date(now.getTime() - TWO_MINUTES_MS);
 
-        // 1. Usuń trwale wiadomości z bazy TYLKO gdy minęły 2 minuty od odczytania ORAZ A je fizycznie zobaczył na ekranie
+        // 1. Usuń trwale z bazy, gdy minęły 2 minuty od odczytania ORAZ autor A fizycznie je zobaczył
         await Message.deleteMany({
             readAt: { $ne: null, $lte: twoMinutesAgo },
             seenByAuthor: true
         });
 
-        // 2. Jeśli zalogowany jest O -> oznacz nowe nieprzeczytane wiadomości od A jako odczytane TERAZ
+        // 2. Jeśli zalogowany jest O -> oznacz nieprzeczytane wiadomości
         if (currentUser === 'o') {
             await Message.updateMany(
                 { author: 'a', readAt: null },
@@ -161,10 +161,10 @@ app.get('/messages', async (req, res) => {
             );
         }
 
-        // 3. Pobierz wiadomości z bazy
-        let messages = await Message.find().sort({ createdAt: -1 });
+        // 3. Pobierz wiadomości w trybie .lean() dla maksymalnej wydajności
+        let messages = await Message.find().sort({ createdAt: -1 }).lean();
 
-        // 4. Ukryj przed O wiadomości od A, jeśli od ich odczytania minęły 2 minuty
+        // 4. Ukryj przed O wiadomości starsze niż 2 min od odczytu
         if (currentUser === 'o') {
             messages = messages.filter(msg => {
                 if (msg.author === 'a' && msg.readAt) {
@@ -181,7 +181,7 @@ app.get('/messages', async (req, res) => {
     }
 });
 
-// Potwierdzenie wyświetlenia komunikatu przez A (uruchamia timer usuwania)
+// Potwierdzenie zobaczenia odczytu przez autora A
 app.post('/messages/ack', async (req, res) => {
     const currentUser = req.session.username;
     if (currentUser !== 'a') return res.sendStatus(200);
